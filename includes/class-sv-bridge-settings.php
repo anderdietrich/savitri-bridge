@@ -258,6 +258,30 @@ function sv_bridge_render_settings() {
 					<span class="sv-pill__dot"></span>
 					<?php echo $enabled ? esc_html__( 'Ativo', 'savitri-file-bridge' ) : esc_html__( 'Desligado', 'savitri-file-bridge' ); ?>
 				</span>
+				<?php
+				// Flag de atualização: entre o estado do canal e a versão instalada.
+				if ( ! $update['ok'] ) {
+					$sv_upd_class = 'sv-pill--unknown';
+					$sv_upd_label = __( 'Sem verificação', 'savitri-file-bridge' );
+					$sv_upd_title = $update['error'];
+				} elseif ( $update['newer'] ) {
+					$sv_upd_class = 'sv-pill--pending';
+					$sv_upd_label = __( 'Atualização pendente', 'savitri-file-bridge' );
+					$sv_upd_title = sprintf(
+						/* translators: %s: versão publicada */
+						__( 'Versão %s disponível no repositório.', 'savitri-file-bridge' ),
+						$update['latest']
+					);
+				} else {
+					$sv_upd_class = 'sv-pill--current';
+					$sv_upd_label = __( 'Atualizado', 'savitri-file-bridge' );
+					$sv_upd_title = __( 'Você está na versão mais recente publicada.', 'savitri-file-bridge' );
+				}
+				?>
+				<span class="sv-pill <?php echo esc_attr( $sv_upd_class ); ?>" title="<?php echo esc_attr( $sv_upd_title ); ?>">
+					<span class="sv-pill__dot"></span>
+					<?php echo esc_html( $sv_upd_label ); ?>
+				</span>
 				<span class="sv-pill">
 					<?php
 					printf(

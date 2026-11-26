@@ -137,6 +137,51 @@
 	box-shadow: 0 0 0 3px rgba(255, 122, 112, 0.22);
 }
 
+/* Flag de atualização */
+.sv-pill--current {
+	background: rgba(61, 220, 132, 0.16);
+	border-color: rgba(61, 220, 132, 0.4);
+	color: #eafff2;
+}
+
+.sv-pill--current .sv-pill__dot {
+	background: #3ddc84;
+	box-shadow: 0 0 0 3px rgba(61, 220, 132, 0.22);
+}
+
+.sv-pill--pending {
+	background: rgba(255, 196, 84, 0.16);
+	border-color: rgba(255, 196, 84, 0.45);
+	color: #fff6e2;
+}
+
+.sv-pill--pending .sv-pill__dot {
+	background: #ffc454;
+	box-shadow: 0 0 0 3px rgba(255, 196, 84, 0.24);
+	animation: sv-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes sv-pulse {
+	0%, 100% { box-shadow: 0 0 0 3px rgba(255, 196, 84, 0.24); }
+	50% { box-shadow: 0 0 0 6px rgba(255, 196, 84, 0.1); }
+}
+
+.sv-pill--unknown {
+	background: rgba(255, 255, 255, 0.08);
+	border-color: rgba(255, 255, 255, 0.2);
+	color: #c6d6e6;
+}
+
+.sv-pill--unknown .sv-pill__dot {
+	background: #8b9bb0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.sv-pill--pending .sv-pill__dot {
+		animation: none;
+	}
+}
+
 /* ---------- avisos ---------- */
 
 .sv-alert {
