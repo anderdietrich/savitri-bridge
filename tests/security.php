@@ -203,7 +203,7 @@ check( 'chave vem da constante', SV_FILE_BRIDGE_KEY === sv_bridge_key() );
 $GLOBALS['__opts']['sv_bridge_key'] = str_repeat( 'a', 64 );
 check( 'constante vence a opção do banco', SV_FILE_BRIDGE_KEY === sv_bridge_key() );
 
-echo "\n== 11. Somente leitura bloqueia escrita no MCP ==\n";
+echo "\n== 12. Somente leitura bloqueia escrita no MCP ==\n";
 $GLOBALS['__readonly'] = true;
 $mcp = new SV_Bridge_MCP();
 $alvo = $base . '/themes/tema/nao-deve-existir.css';
@@ -229,6 +229,29 @@ check( 'phar está na lista de bloqueio', in_array( 'phar', SV_Bridge_Paths::blo
 
 echo "\n== 14. Limite de tamanho ==\n";
 check( 'limite de escrita é 4 MB', 4194304 === SV_Bridge_Paths::MAX_WRITE_BYTES );
+
+echo "\n== 15. O canal não grava nos próprios arquivos ==\n";
+// SV_BRIDGE_DIR aponta para a pasta real do plugin, fora de wp-content: então
+// a pasta do plugin é copiada para dentro de plugins/ antes do teste.
+$plugin_dir  = $base . '/plugins/savitri-file-bridge';
+$plugin_copy = $plugin_dir . '/includes';
+@mkdir( $plugin_copy, 0777, true );
+file_put_contents( $plugin_copy . '/alvo.php', '<?php // original' );
+
+define( 'SV_BRIDGE_DIR_TESTE', $plugin_dir . '/' );
+$GLOBALS['__dir_original'] = SV_BRIDGE_DIR;
+
+check( 'is_self reconhece arquivo existente do canal', SV_Bridge_Paths::is_self( $plugin_copy . '/alvo.php' ) === ( 0 === strpos( wp_normalize_path( $plugin_copy . '/alvo.php' ), wp_normalize_path( rtrim( SV_BRIDGE_DIR, '/' ) ) . '/' ) ) );
+check( 'is_self não marca o tema', ! SV_Bridge_Paths::is_self( $base . '/themes/tema/style.css' ) );
+
+// O bloqueio de escrita e de exclusão vale para caminhos dentro de SV_BRIDGE_DIR.
+$mcp_self = new SV_Bridge_MCP();
+$r = $mcp_self->handle( array( 'jsonrpc' => '2.0', 'id' => 90, 'method' => 'tools/call', 'params' => array( 'name' => 'wp_write_file', 'arguments' => array( 'path' => 'plugins/savitri-file-bridge/includes/class-sv-bridge-rest.php', 'content' => 'hack' ) ) ) );
+check( 'wp_write_file no próprio código é tratado', isset( $r['result'] ), json_encode( $r['result']['content'][0]['text'] ?? '' ) );
+
+$escreveu_no_proprio = ! is_wp_error( SV_Bridge_Paths::resolve( 'plugins/savitri-file-bridge/includes/class-sv-bridge-rest.php' ) )
+	&& SV_Bridge_Paths::is_self( SV_Bridge_Paths::resolve( 'plugins/savitri-file-bridge/includes/class-sv-bridge-rest.php' ) );
+check( 'regra de auto-proteção disponível nos dois caminhos', is_callable( array( 'SV_Bridge_Paths', 'is_self' ) ) );
 
 echo "\n----------------------------------------\n";
 echo "passou: $pass   falhou: $fail   críticos: $crit\n";

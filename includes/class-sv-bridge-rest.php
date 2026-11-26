@@ -551,6 +551,10 @@ class SV_Bridge_REST {
 			return $this->fail( $full );
 		}
 
+		if ( SV_Bridge_Paths::is_self( $full ) ) {
+			return $this->fail( new WP_Error( 'sv_bridge_self', __( 'O canal não pode gravar nos próprios arquivos.', 'savitri-file-bridge' ), array( 'status' => 403 ) ) );
+		}
+
 		$blocked = SV_Bridge_Paths::blocked_extensions();
 		$ext     = strtolower( (string) pathinfo( $full, PATHINFO_EXTENSION ) );
 

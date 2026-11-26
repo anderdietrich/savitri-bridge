@@ -623,6 +623,10 @@ class SV_Bridge_MCP {
 					return $full;
 				}
 
+				if ( SV_Bridge_Paths::is_self( $full ) ) {
+					return new WP_Error( 'sv_mcp_self', 'O canal não pode gravar nos próprios arquivos.' );
+				}
+
 				$content  = isset( $args['content'] ) ? (string) $args['content'] : '';
 				$encoding = isset( $args['encoding'] ) ? (string) $args['encoding'] : 'text';
 

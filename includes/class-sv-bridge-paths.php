@@ -158,6 +158,39 @@ class SV_Bridge_Paths {
 	}
 
 	/**
+	 * O caminho é um arquivo do próprio canal?
+	 *
+	 * O canal pode gravar e apagar arquivos de temas e plugins, mas não os seus:
+	 * sobrescrever o próprio código permitiria transformar o plugin em algo que
+	 * o site carrega sempre. Apagar já era bloqueado; gravar não era.
+	 *
+	 * @param string $full Caminho absoluto já resolvido.
+	 * @return bool
+	 */
+	public static function is_self( $full ) {
+		if ( ! defined( 'SV_BRIDGE_DIR' ) || '' === (string) SV_BRIDGE_DIR ) {
+			return false;
+		}
+
+		$full = wp_normalize_path( (string) $full );
+		$self = wp_normalize_path( (string) SV_BRIDGE_DIR );
+
+		$real_self = realpath( $self );
+		$real_full = realpath( $full );
+
+		if ( false !== $real_self ) {
+			$real_self = wp_normalize_path( rtrim( $real_self, '/' ) ) . '/';
+		} else {
+			$real_self = rtrim( $self, '/' ) . '/';
+		}
+
+		// O arquivo pode ainda não existir: valida pelo diretório mais próximo.
+		$check = false !== $real_full ? wp_normalize_path( $real_full ) : $full;
+
+		return 0 === strpos( $check, $real_self );
+	}
+
+	/**
 	 * Os atributos externos de uma entrada indicam symlink?
 	 *
 	 * Um .zip pode carregar um symlink apontando para fora da área permitida;
