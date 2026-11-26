@@ -1,6 +1,6 @@
 <?php
 /**
- * Tela de configuração: chave, endpoint MCP e log.
+ * Tela de configuração: tabela de chaves, endpoint MCP e log.
  *
  * @package savitri-file-bridge
  */
@@ -27,16 +27,6 @@ add_action( 'admin_menu', 'sv_bridge_settings_menu' );
 function sv_bridge_register_settings() {
 	register_setting(
 		'sv_bridge',
-		'sv_bridge_key',
-		array(
-			'type'              => 'string',
-			'sanitize_callback' => 'sv_bridge_sanitize_key',
-			'default'           => '',
-		)
-	);
-
-	register_setting(
-		'sv_bridge',
 		'sv_bridge_readonly',
 		array(
 			'type'              => 'boolean',
@@ -46,24 +36,6 @@ function sv_bridge_register_settings() {
 	);
 }
 add_action( 'admin_init', 'sv_bridge_register_settings' );
-
-/**
- * Sanitiza a chave (só hexadecimal, mínimo 32).
- *
- * @param string $value Valor.
- * @return string
- */
-function sv_bridge_sanitize_key( $value ) {
-	$value = strtolower( preg_replace( '/[^a-f0-9]/i', '', (string) $value ) );
-
-	if ( '' !== $value && strlen( $value ) < 32 ) {
-		add_settings_error( 'sv_bridge', 'sv_bridge_short', __( 'A chave precisa ter no mínimo 32 caracteres. Nada foi salvo.', 'savitri-file-bridge' ), 'error' );
-
-		return (string) get_option( 'sv_bridge_key', '' );
-	}
-
-	return $value;
-}
 
 /**
  * Sanitiza booleano.
@@ -76,31 +48,88 @@ function sv_bridge_sanitize_bool( $value ) {
 }
 
 /**
- * Ação: gerar chave nova.
+ * URL da tela de configuração.
+ *
+ * @return string
  */
-function sv_bridge_admin_generate_key() {
+function sv_bridge_settings_url() {
+	return admin_url( 'options-general.php?page=sv-bridge' );
+}
+
+/**
+ * Volta para a tela com um aviso.
+ *
+ * @param string  $notice  Código do aviso.
+ * @param string  $name    Nome da chave (para o aviso).
+ * @return void
+ */
+function sv_bridge_back( $notice, $name = '' ) {
+	$args = array( 'sv_bridge_notice' => $notice );
+
+	if ( '' !== $name ) {
+		$args['sv_bridge_name'] = rawurlencode( $name );
+	}
+
+	wp_safe_redirect( add_query_arg( $args, sv_bridge_settings_url() ) );
+	exit;
+}
+
+/**
+ * Ação: criar uma chave nova com nome.
+ */
+function sv_bridge_admin_create_key() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		wp_die( esc_html__( 'Sem permissão.', 'savitri-file-bridge' ) );
 	}
 
-	check_admin_referer( 'sv_bridge_generate' );
+	check_admin_referer( 'sv_bridge_create' );
 
 	if ( 'constant' === sv_bridge_key_source() ) {
-		wp_safe_redirect( add_query_arg( 'sv_bridge_notice', 'constant', sv_bridge_settings_url() ) );
-		exit;
+		sv_bridge_back( 'constant' );
 	}
 
-	update_option( 'sv_bridge_key', sv_bridge_generate_key(), false );
+	$name = isset( $_POST['sv_bridge_name'] ) ? sanitize_text_field( wp_unslash( $_POST['sv_bridge_name'] ) ) : '';
 
-	SV_Bridge_Log::add( 'chave gerada', 'admin' );
+	if ( '' === $name ) {
+		sv_bridge_back( 'no_name' );
+	}
 
-	wp_safe_redirect( add_query_arg( 'sv_bridge_notice', 'generated', sv_bridge_settings_url() ) );
-	exit;
+	$entry = sv_bridge_add_key( $name );
+
+	SV_Bridge_Log::add( sprintf( 'chave criada: %s', $entry['name'] ), 'admin' );
+
+	sv_bridge_back( 'created', $entry['name'] );
 }
-add_action( 'admin_post_sv_bridge_generate', 'sv_bridge_admin_generate_key' );
+add_action( 'admin_post_sv_bridge_create', 'sv_bridge_admin_create_key' );
 
 /**
- * Ação: revogar a chave.
+ * Ação: renomear uma chave.
+ */
+function sv_bridge_admin_rename_key() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'Sem permissão.', 'savitri-file-bridge' ) );
+	}
+
+	check_admin_referer( 'sv_bridge_rename' );
+
+	$id   = isset( $_POST['sv_bridge_id'] ) ? sanitize_text_field( wp_unslash( $_POST['sv_bridge_id'] ) ) : '';
+	$name = isset( $_POST['sv_bridge_name'] ) ? sanitize_text_field( wp_unslash( $_POST['sv_bridge_name'] ) ) : '';
+
+	if ( '' === $id || '' === $name ) {
+		sv_bridge_back( 'no_name' );
+	}
+
+	if ( sv_bridge_rename_key( $id, $name ) ) {
+		SV_Bridge_Log::add( sprintf( 'chave renomeada: %s', $name ), 'admin' );
+		sv_bridge_back( 'renamed', $name );
+	}
+
+	sv_bridge_back( 'not_found' );
+}
+add_action( 'admin_post_sv_bridge_rename', 'sv_bridge_admin_rename_key' );
+
+/**
+ * Ação: revogar (apagar) uma chave.
  */
 function sv_bridge_admin_revoke_key() {
 	if ( ! current_user_can( 'manage_options' ) ) {
@@ -109,28 +138,42 @@ function sv_bridge_admin_revoke_key() {
 
 	check_admin_referer( 'sv_bridge_revoke' );
 
-	if ( 'constant' === sv_bridge_key_source() ) {
-		wp_safe_redirect( add_query_arg( 'sv_bridge_notice', 'constant', sv_bridge_settings_url() ) );
-		exit;
+	$id   = isset( $_POST['sv_bridge_id'] ) ? sanitize_text_field( wp_unslash( $_POST['sv_bridge_id'] ) ) : '';
+	$name = '';
+
+	foreach ( sv_bridge_keys() as $entry ) {
+		if ( $entry['id'] === $id ) {
+			$name = $entry['name'];
+		}
 	}
 
-	update_option( 'sv_bridge_key', '', false );
+	if ( '' === $id || ! sv_bridge_revoke_key( $id ) ) {
+		sv_bridge_back( 'not_found' );
+	}
 
-	SV_Bridge_Log::add( 'chave revogada', 'admin' );
+	SV_Bridge_Log::add( sprintf( 'chave revogada: %s', '' !== $name ? $name : $id ), 'admin' );
 
-	wp_safe_redirect( add_query_arg( 'sv_bridge_notice', 'revoked', sv_bridge_settings_url() ) );
-	exit;
+	sv_bridge_back( 'revoked', $name );
 }
 add_action( 'admin_post_sv_bridge_revoke', 'sv_bridge_admin_revoke_key' );
 
 /**
- * URL da tela de configuração.
- *
- * @return string
+ * Ação: liberar o bloqueio de tentativas do próprio IP.
  */
-function sv_bridge_settings_url() {
-	return admin_url( 'options-general.php?page=sv-bridge' );
+function sv_bridge_admin_unlock() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'Sem permissão.', 'savitri-file-bridge' ) );
+	}
+
+	check_admin_referer( 'sv_bridge_unlock' );
+
+	SV_Bridge_Auth::unlock_current_ip();
+
+	SV_Bridge_Log::add( 'bloqueio de tentativas liberado', 'admin' );
+
+	sv_bridge_back( 'unlocked' );
 }
+add_action( 'admin_post_sv_bridge_unlock', 'sv_bridge_admin_unlock' );
 
 /**
  * Desenha a tela.
@@ -141,21 +184,58 @@ function sv_bridge_render_settings() {
 	}
 
 	$source   = sv_bridge_key_source();
-	$key      = sv_bridge_key();
+	$keys     = sv_bridge_keys();
 	$enabled  = '' !== $source;
 	$readonly = (bool) get_option( 'sv_bridge_readonly', false );
 	$mcp_url  = rest_url( 'sv-bridge/v1/mcp' );
 	$notice   = isset( $_GET['sv_bridge_notice'] ) ? sanitize_key( wp_unslash( $_GET['sv_bridge_notice'] ) ) : '';
+	$name     = isset( $_GET['sv_bridge_name'] ) ? sanitize_text_field( rawurldecode( wp_unslash( $_GET['sv_bridge_name'] ) ) ) : '';
 	$log      = SV_Bridge_Log::tail( 40 );
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'Savitri Bridge', 'savitri-file-bridge' ); ?></h1>
 		<p><?php esc_html_e( 'Canal para o assistente ler e editar arquivos de temas e plugins deste site.', 'savitri-file-bridge' ); ?></p>
 
-		<?php if ( 'generated' === $notice ) : ?>
-			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Chave gerada. Copie e cole na tela de conectores.', 'savitri-file-bridge' ); ?></p></div>
+		<?php if ( 'created' === $notice ) : ?>
+			<div class="notice notice-success is-dismissible"><p>
+				<?php
+				printf(
+					/* translators: %s: nome da chave */
+					esc_html__( 'Chave «%s» criada. Copie e cole no campo de token da tela de conectores.', 'savitri-file-bridge' ),
+					esc_html( $name )
+				);
+				?>
+			</p></div>
+		<?php elseif ( 'renamed' === $notice ) : ?>
+			<div class="notice notice-success is-dismissible"><p>
+				<?php
+				printf(
+					/* translators: %s: nome da chave */
+					esc_html__( 'Nome da chave atualizado para «%s».', 'savitri-file-bridge' ),
+					esc_html( $name )
+				);
+				?>
+			</p></div>
 		<?php elseif ( 'revoked' === $notice ) : ?>
-			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Chave revogada. O acesso está encerrado.', 'savitri-file-bridge' ); ?></p></div>
+			<div class="notice notice-success is-dismissible"><p>
+				<?php
+				if ( '' !== $name ) {
+					printf(
+						/* translators: %s: nome da chave */
+						esc_html__( 'Chave «%s» revogada. O acesso com ela está encerrado e ela saiu da lista.', 'savitri-file-bridge' ),
+						esc_html( $name )
+					);
+				} else {
+					esc_html_e( 'Chave revogada. O acesso com ela está encerrado e ela saiu da lista.', 'savitri-file-bridge' );
+				}
+				?>
+			</p></div>
+		<?php elseif ( 'unlocked' === $notice ) : ?>
+			<div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Bloqueio de tentativas liberado para o seu IP.', 'savitri-file-bridge' ); ?></p></div>
+		<?php elseif ( 'no_name' === $notice ) : ?>
+			<div class="notice notice-error is-dismissible"><p><?php esc_html_e( 'Dê um nome à chave: ele identifica a ferramenta conectada.', 'savitri-file-bridge' ); ?></p></div>
+		<?php elseif ( 'not_found' === $notice ) : ?>
+			<div class="notice notice-error is-dismissible"><p><?php esc_html_e( 'Chave não encontrada. A lista pode ter mudado.', 'savitri-file-bridge' ); ?></p></div>
 		<?php elseif ( 'constant' === $notice ) : ?>
 			<div class="notice notice-warning is-dismissible"><p><?php esc_html_e( 'A chave está definida no wp-config.php. Para gerenciá-la por aqui, remova a constante SV_FILE_BRIDGE_KEY.', 'savitri-file-bridge' ); ?></p></div>
 		<?php endif; ?>
@@ -167,9 +247,10 @@ function sv_bridge_render_settings() {
 				<td>
 					<?php if ( $enabled ) : ?>
 						<strong style="color:#1a7f37;"><?php esc_html_e( 'Ativo', 'savitri-file-bridge' ); ?></strong>
+						— <?php printf( esc_html( _n( '%s chave ativa', '%s chaves ativas', count( $keys ), 'savitri-file-bridge' ) ), esc_html( number_format_i18n( count( $keys ) ) ) ); ?>
 					<?php else : ?>
 						<strong style="color:#b32d2e;"><?php esc_html_e( 'Desligado', 'savitri-file-bridge' ); ?></strong>
-						— <?php esc_html_e( 'gere uma chave abaixo para ligar.', 'savitri-file-bridge' ); ?>
+						— <?php esc_html_e( 'crie uma chave abaixo para ligar.', 'savitri-file-bridge' ); ?>
 					<?php endif; ?>
 				</td>
 			</tr>
@@ -180,103 +261,143 @@ function sv_bridge_render_settings() {
 					if ( 'constant' === $source ) {
 						esc_html_e( 'Constante SV_FILE_BRIDGE_KEY no wp-config.php', 'savitri-file-bridge' );
 					} elseif ( 'option' === $source ) {
-						esc_html_e( 'Gerada nesta tela (banco de dados)', 'savitri-file-bridge' );
+						esc_html_e( 'Chaves criadas nesta tela (banco de dados)', 'savitri-file-bridge' );
 					} else {
 						esc_html_e( 'Nenhuma chave configurada', 'savitri-file-bridge' );
 					}
 					?>
 				</td>
 			</tr>
+			<tr>
+				<th scope="row"><?php esc_html_e( 'Seu IP', 'savitri-file-bridge' ); ?></th>
+				<td>
+					<code><?php echo esc_html( SV_Bridge_Auth::current_ip() ); ?></code>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block;margin-left:8px;">
+						<input type="hidden" name="action" value="sv_bridge_unlock">
+						<?php wp_nonce_field( 'sv_bridge_unlock' ); ?>
+						<?php submit_button( __( 'Liberar bloqueio', 'savitri-file-bridge' ), 'secondary', 'submit', false ); ?>
+					</form>
+					<p class="description"><?php esc_html_e( 'Cinco tentativas com chave errada bloqueiam o acesso por 10 minutos. Este botão zera o bloqueio do seu IP.', 'savitri-file-bridge' ); ?></p>
+				</td>
+			</tr>
 		</table>
 
-		<h2 class="title"><?php esc_html_e( 'Chave de conexão', 'savitri-file-bridge' ); ?></h2>
+		<h2 class="title"><?php esc_html_e( 'Chaves de conexão', 'savitri-file-bridge' ); ?></h2>
 
-		<?php if ( $enabled ) : ?>
-			<p><?php esc_html_e( 'Cole esta chave no campo de token da tela de conectores. Trate como senha: quem tiver a chave pode escrever código no site.', 'savitri-file-bridge' ); ?></p>
-			<div class="sv-bridge-key" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;max-width:760px;">
-				<input type="password" readonly id="sv-bridge-key" value="<?php echo esc_attr( $key ); ?>" class="regular-text code" style="flex:1 1 420px;min-width:240px;font-family:monospace;" autocomplete="off" spellcheck="false" autocapitalize="off" aria-describedby="sv-bridge-key-help" aria-label="<?php esc_attr_e( 'Chave de conexão', 'savitri-file-bridge' ); ?>">
-				<button type="button" class="button" id="sv-bridge-key-toggle" aria-controls="sv-bridge-key" aria-pressed="false"><?php esc_html_e( 'Mostrar', 'savitri-file-bridge' ); ?></button>
-				<button type="button" class="button" id="sv-bridge-key-copy"><?php esc_html_e( 'Copiar', 'savitri-file-bridge' ); ?></button>
-			</div>
-			<p class="description" id="sv-bridge-key-help"><?php esc_html_e( 'A chave fica mascarada. Clique em Mostrar para vê-la, ou em Copiar para colá-la na tela de conectores.', 'savitri-file-bridge' ); ?></p>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin:12px 0 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;max-width:760px;">
+			<input type="hidden" name="action" value="sv_bridge_create">
+			<?php wp_nonce_field( 'sv_bridge_create' ); ?>
+			<label style="flex:1 1 320px;">
+				<span style="display:block;margin-bottom:4px;font-weight:600;"><?php esc_html_e( 'Nome da ferramenta conectada', 'savitri-file-bridge' ); ?></span>
+				<input type="text" name="sv_bridge_name" class="regular-text" style="width:100%;" required maxlength="80" placeholder="<?php esc_attr_e( 'Ex.: Maestro — Bob', 'savitri-file-bridge' ); ?>" <?php disabled( 'constant' === $source ); ?>>
+			</label>
+			<?php submit_button( __( 'Criar chave', 'savitri-file-bridge' ), 'primary', 'submit', false, 'constant' === $source ? array( 'disabled' => 'disabled' ) : array() ); ?>
+		</form>
+
+		<?php if ( ! $keys ) : ?>
+			<p><?php esc_html_e( 'Nenhuma chave criada. Crie a primeira acima para ligar o canal.', 'savitri-file-bridge' ); ?></p>
+		<?php else : ?>
+			<table class="wp-list-table widefat fixed striped" style="max-width:1100px;">
+				<thead>
+					<tr>
+						<th scope="col" style="width:22%;"><?php esc_html_e( 'Ferramenta conectada', 'savitri-file-bridge' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Chave', 'savitri-file-bridge' ); ?></th>
+						<th scope="col" style="width:15%;"><?php esc_html_e( 'Criada', 'savitri-file-bridge' ); ?></th>
+						<th scope="col" style="width:17%;"><?php esc_html_e( 'Último uso', 'savitri-file-bridge' ); ?></th>
+						<th scope="col" style="width:20%;"><?php esc_html_e( 'Ações', 'savitri-file-bridge' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+				<?php foreach ( $keys as $i => $entry ) : ?>
+					<tr>
+						<td>
+							<strong><?php echo esc_html( '' !== $entry['name'] ? $entry['name'] : __( 'Sem nome', 'savitri-file-bridge' ) ); ?></strong>
+							<details style="margin-top:6px;">
+								<summary style="cursor:pointer;color:#2271b1;"><?php esc_html_e( 'Editar nome', 'savitri-file-bridge' ); ?></summary>
+								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
+									<input type="hidden" name="action" value="sv_bridge_rename">
+									<input type="hidden" name="sv_bridge_id" value="<?php echo esc_attr( $entry['id'] ); ?>">
+									<?php wp_nonce_field( 'sv_bridge_rename' ); ?>
+									<input type="text" name="sv_bridge_name" value="<?php echo esc_attr( $entry['name'] ); ?>" class="regular-text" style="flex:1 1 140px;min-width:120px;" required maxlength="80" aria-label="<?php esc_attr_e( 'Nome da chave', 'savitri-file-bridge' ); ?>">
+									<button type="submit" class="button button-small"><?php esc_html_e( 'Salvar', 'savitri-file-bridge' ); ?></button>
+								</form>
+							</details>
+						</td>
+						<td>
+							<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+								<input type="password" readonly value="<?php echo esc_attr( $entry['key'] ); ?>" class="code sv-bridge-key-input" id="sv-bridge-key-<?php echo esc_attr( $entry['id'] ); ?>" style="flex:1 1 260px;min-width:180px;font-family:monospace;" autocomplete="off" spellcheck="false" aria-label="<?php esc_attr_e( 'Chave de conexão', 'savitri-file-bridge' ); ?>">
+								<button type="button" class="button button-small sv-bridge-toggle" data-target="sv-bridge-key-<?php echo esc_attr( $entry['id'] ); ?>" aria-pressed="false"><?php esc_html_e( 'Mostrar', 'savitri-file-bridge' ); ?></button>
+								<button type="button" class="button button-small sv-bridge-copy" data-target="sv-bridge-key-<?php echo esc_attr( $entry['id'] ); ?>"><?php esc_html_e( 'Copiar', 'savitri-file-bridge' ); ?></button>
+							</div>
+						</td>
+						<td><?php echo esc_html( '' !== $entry['created'] ? $entry['created'] : '—' ); ?></td>
+						<td>
+							<?php echo esc_html( '' !== $entry['last_used'] ? $entry['last_used'] : __( 'nunca usada', 'savitri-file-bridge' ) ); ?>
+							<?php if ( '' !== $entry['last_ip'] ) : ?>
+								<br><span class="description"><?php echo esc_html( $entry['last_ip'] ); ?></span>
+							<?php endif; ?>
+						</td>
+						<td>
+							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('<?php echo esc_js( sprintf( /* translators: %s: nome da chave */ __( 'Revogar a chave «%s»? A ferramenta conectada perde o acesso imediatamente e a chave sai da lista. Não dá para desfazer.', 'savitri-file-bridge' ), '' !== $entry['name'] ? $entry['name'] : __( 'sem nome', 'savitri-file-bridge' ) ) ); ?>');">
+								<input type="hidden" name="action" value="sv_bridge_revoke">
+								<input type="hidden" name="sv_bridge_id" value="<?php echo esc_attr( $entry['id'] ); ?>">
+								<?php wp_nonce_field( 'sv_bridge_revoke' ); ?>
+								<button type="submit" class="button button-small button-link-delete" style="color:#b32d2e;"><?php esc_html_e( 'Revogar', 'savitri-file-bridge' ); ?></button>
+							</form>
+						</td>
+					</tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table>
+			<p class="description"><?php esc_html_e( 'A chave só sai desta lista quando é revogada. Quem tiver uma chave pode escrever código no site: trate como senha.', 'savitri-file-bridge' ); ?></p>
+
 			<script>
 			( function () {
-				var input = document.getElementById( 'sv-bridge-key' );
-				var toggle = document.getElementById( 'sv-bridge-key-toggle' );
-				var copy = document.getElementById( 'sv-bridge-key-copy' );
-
-				if ( ! input || ! toggle || ! copy ) {
-					return;
-				}
-
 				var showLabel   = <?php echo wp_json_encode( __( 'Mostrar', 'savitri-file-bridge' ) ); ?>;
 				var hideLabel   = <?php echo wp_json_encode( __( 'Ocultar', 'savitri-file-bridge' ) ); ?>;
 				var copyLabel   = <?php echo wp_json_encode( __( 'Copiar', 'savitri-file-bridge' ) ); ?>;
 				var copiedLabel = <?php echo wp_json_encode( __( 'Copiado!', 'savitri-file-bridge' ) ); ?>;
 				var failLabel   = <?php echo wp_json_encode( __( 'Copie manualmente', 'savitri-file-bridge' ) ); ?>;
 
-				function reveal() {
-					input.setAttribute( 'type', 'text' );
-					toggle.textContent = hideLabel;
-					toggle.setAttribute( 'aria-pressed', 'true' );
-				}
-
-				toggle.addEventListener( 'click', function () {
-					if ( 'password' === input.getAttribute( 'type' ) ) {
-						reveal();
-					} else {
-						input.setAttribute( 'type', 'password' );
-						toggle.textContent = showLabel;
-						toggle.setAttribute( 'aria-pressed', 'false' );
-					}
+				document.querySelectorAll( '.sv-bridge-toggle' ).forEach( function ( button ) {
+					button.addEventListener( 'click', function () {
+						var input = document.getElementById( button.getAttribute( 'data-target' ) );
+						if ( ! input ) { return; }
+						var masking = 'password' === input.getAttribute( 'type' );
+						input.setAttribute( 'type', masking ? 'text' : 'password' );
+						button.textContent = masking ? hideLabel : showLabel;
+						button.setAttribute( 'aria-pressed', masking ? 'true' : 'false' );
+					} );
 				} );
 
-				copy.addEventListener( 'click', function () {
-					var feedback = function ( ok ) {
-						copy.textContent = ok ? copiedLabel : failLabel;
-						window.setTimeout( function () {
-							copy.textContent = copyLabel;
-						}, 2000 );
-					};
+				document.querySelectorAll( '.sv-bridge-copy' ).forEach( function ( button ) {
+					button.addEventListener( 'click', function () {
+						var input = document.getElementById( button.getAttribute( 'data-target' ) );
+						if ( ! input ) { return; }
 
-					var fallback = function () {
-						reveal();
-						input.focus();
-						input.setSelectionRange( 0, input.value.length );
-						var ok = false;
-						try {
-							ok = document.execCommand( 'copy' );
-						} catch ( e ) {
-							ok = false;
+						var feedback = function ( ok ) {
+							button.textContent = ok ? copiedLabel : failLabel;
+							window.setTimeout( function () { button.textContent = copyLabel; }, 2000 );
+						};
+
+						var fallback = function () {
+							input.setAttribute( 'type', 'text' );
+							input.focus();
+							input.setSelectionRange( 0, input.value.length );
+							var ok = false;
+							try { ok = document.execCommand( 'copy' ); } catch ( e ) { ok = false; }
+							feedback( ok );
+						};
+
+						if ( navigator.clipboard && navigator.clipboard.writeText ) {
+							navigator.clipboard.writeText( input.value ).then( function () { feedback( true ); }, fallback );
+						} else {
+							fallback();
 						}
-						feedback( ok );
-					};
-
-					if ( navigator.clipboard && navigator.clipboard.writeText ) {
-						navigator.clipboard.writeText( input.value ).then( function () {
-							feedback( true );
-						}, fallback );
-					} else {
-						fallback();
-					}
+					} );
 				} );
 			}() );
 			</script>
-		<?php endif; ?>
-
-		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block;margin-right:8px;">
-			<input type="hidden" name="action" value="sv_bridge_generate">
-			<?php wp_nonce_field( 'sv_bridge_generate' ); ?>
-			<?php submit_button( $enabled ? __( 'Gerar nova chave', 'savitri-file-bridge' ) : __( 'Gerar chave', 'savitri-file-bridge' ), 'primary', 'submit', false ); ?>
-		</form>
-
-		<?php if ( $enabled && 'option' === $source ) : ?>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block;"
-				onsubmit="return confirm('<?php echo esc_js( __( 'Revogar a chave? O assistente perde o acesso imediatamente.', 'savitri-file-bridge' ) ); ?>');">
-				<input type="hidden" name="action" value="sv_bridge_revoke">
-				<?php wp_nonce_field( 'sv_bridge_revoke' ); ?>
-				<?php submit_button( __( 'Revogar chave', 'savitri-file-bridge' ), 'delete', 'submit', false ); ?>
-			</form>
 		<?php endif; ?>
 
 		<h2 class="title"><?php esc_html_e( 'Conexão na tela de conectores', 'savitri-file-bridge' ); ?></h2>
@@ -305,7 +426,7 @@ function sv_bridge_render_settings() {
 			</tr>
 			<tr>
 				<th scope="row"><?php esc_html_e( 'Token', 'savitri-file-bridge' ); ?></th>
-				<td><code><?php esc_html_e( 'a chave exibida acima', 'savitri-file-bridge' ); ?></code></td>
+				<td><code><?php esc_html_e( 'uma das chaves da tabela acima', 'savitri-file-bridge' ); ?></code></td>
 			</tr>
 		</table>
 

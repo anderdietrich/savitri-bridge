@@ -132,7 +132,7 @@ class SV_Bridge_MCP {
 				'description' => 'Lista os plugins instalados, com versão e se estão ativos.',
 				'inputSchema' => array(
 					'type'       => 'object',
-					'properties' => array(),
+					'properties' => new stdClass(),
 					'required'   => array(),
 				),
 			),
@@ -160,7 +160,7 @@ class SV_Bridge_MCP {
 				'description' => 'Lista os temas instalados, com versão e qual está ativo.',
 				'inputSchema' => array(
 					'type'       => 'object',
-					'properties' => array(),
+					'properties' => new stdClass(),
 					'required'   => array(),
 				),
 			),
@@ -283,12 +283,22 @@ class SV_Bridge_MCP {
 						),
 						'categories' => array(
 							'type'        => 'array',
-							'items'       => array( 'type' => array( 'string', 'integer' ) ),
+							'items'       => array(
+								'anyOf' => array(
+									array( 'type' => 'string' ),
+									array( 'type' => 'integer' ),
+								),
+							),
 							'description' => 'Posts: nomes, slugs ou IDs de categorias (cria as que faltarem).',
 						),
 						'tags'     => array(
 							'type'        => 'array',
-							'items'       => array( 'type' => array( 'string', 'integer' ) ),
+							'items'       => array(
+								'anyOf' => array(
+									array( 'type' => 'string' ),
+									array( 'type' => 'integer' ),
+								),
+							),
 							'description' => 'Posts: tags.',
 						),
 						'template' => array(
@@ -344,12 +354,22 @@ class SV_Bridge_MCP {
 						),
 						'categories' => array(
 							'type'        => 'array',
-							'items'       => array( 'type' => array( 'string', 'integer' ) ),
+							'items'       => array(
+								'anyOf' => array(
+									array( 'type' => 'string' ),
+									array( 'type' => 'integer' ),
+								),
+							),
 							'description' => 'Substitui as categorias.',
 						),
 						'tags'    => array(
 							'type'        => 'array',
-							'items'       => array( 'type' => array( 'string', 'integer' ) ),
+							'items'       => array(
+								'anyOf' => array(
+									array( 'type' => 'string' ),
+									array( 'type' => 'integer' ),
+								),
+							),
 							'description' => 'Substitui as tags.',
 						),
 						'template' => array(
@@ -369,7 +389,7 @@ class SV_Bridge_MCP {
 				'description' => 'Informações do site: nome, URL, versão do WordPress, tema ativo e versão do PHP.',
 				'inputSchema' => array(
 					'type'       => 'object',
-					'properties' => array(),
+					'properties' => new stdClass(),
 					'required'   => array(),
 				),
 			),

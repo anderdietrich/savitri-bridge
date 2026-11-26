@@ -109,6 +109,40 @@ foreach ( $tools as $tool ) {
 }
 check( 'required sempre existe em properties', $schema_ok );
 
+$json_ok  = true;
+$problems = array();
+foreach ( $tools as $tool ) {
+	$enc = json_encode( $tool['inputSchema'] );
+	$dec = json_decode( $enc, true );
+	// "properties" vazio tem de sair como {} (objeto), nunca como [] (lista).
+	if ( isset( $tool['inputSchema']['properties'] ) && array() === $tool['inputSchema']['properties'] && false === strpos( $enc, '"properties":{}' ) ) {
+		$json_ok    = false;
+		$problems[] = $tool['name'] . ':properties';
+	}
+	// "type" como lista de tipos é recusado por validadores estritos: usar anyOf.
+	if ( isset( $tool['inputSchema']['properties'] ) ) {
+		foreach ( $tool['inputSchema']['properties'] as $k => $prop ) {
+			if ( isset( $prop['type'] ) && is_array( $prop['type'] ) ) {
+				$json_ok    = false;
+				$problems[] = $tool['name'] . '.' . $k . ':type-lista';
+			}
+			if ( isset( $prop['items']['type'] ) && is_array( $prop['items']['type'] ) ) {
+				$json_ok    = false;
+				$problems[] = $tool['name'] . '.' . $k . ':items-type-lista';
+			}
+			if ( isset( $prop['items'] ) && ! isset( $prop['items']['type'] ) && ! isset( $prop['items']['anyOf'] ) ) {
+				$json_ok    = false;
+				$problems[] = $tool['name'] . '.' . $k . ':items-sem-type';
+			}
+		}
+	}
+	if ( empty( $enc ) || null === $dec ) {
+		$json_ok    = false;
+		$problems[] = $tool['name'] . ':json-invalido';
+	}
+}
+check( 'schema vira JSON válido (properties {} / anyOf)', $json_ok, implode( ', ', $problems ) );
+
 echo "\n== tools/call ==\n";
 $info = $mcp->handle( array( 'jsonrpc' => '2.0', 'id' => 6, 'method' => 'tools/call', 'params' => array( 'name' => 'wp_site_info', 'arguments' => array() ) ) );
 $text = $info['result']['content'][0]['text'] ?? '';

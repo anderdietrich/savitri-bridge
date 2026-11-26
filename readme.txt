@@ -4,7 +4,7 @@ Tags: mcp, rest, files, theme, plugin
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 2.1.0
+Stable tag: 2.3.0
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -17,30 +17,35 @@ Plugin-ponte de uso pessoal. Expõe um servidor MCP (Model Context Protocol) sob
 e um conjunto de rotas REST auxiliares, sempre limitados a wp-content/themes e
 wp-content/plugins. Também ativa tema e ativa/desativa plugins.
 
-A chave é gerada em Configurações → Savitri Bridge, sem precisar editar arquivo nenhum. Na tela
-ela aparece mascarada, com botões para mostrar/ocultar e copiar.
+As chaves são criadas em Configurações → Savitri Bridge, sem precisar editar arquivo nenhum. A tela
+tem uma tabela com todas as chaves emitidas: nome da ferramenta conectada, a chave (mascarada, com
+botões Mostrar/Ocultar e Copiar), data de criação, último uso com IP e as ações de editar o nome e
+revogar. Cada chave serve para uma ferramenta; a que for revogada perde o acesso na hora e sai da
+lista. As demais continuam válidas.
 
 == Instalação ==
 
 1. Envie o .zip em Plugins → Adicionar novo → Enviar plugin e ative.
 2. Abra Configurações → Savitri Bridge.
-3. Clique em "Gerar chave" e copie o valor exibido.
+3. Dê um nome à ferramenta conectada (ex.: "Maestro — Bob") e clique em "Criar chave".
+   Copie o valor exibido na tabela.
 4. No assistente, adicione um conector via URL:
 
    Nome: WordPress Savitri
    Tipo de conexão: HTTP
    Autenticação: Token
    URL do servidor: https://SEU-SITE/wp-json/sv-bridge/v1/mcp
-   Token: a chave gerada
+   Token: a chave criada para essa ferramenta
 
-Para desligar o acesso, clique em "Revogar chave". Para remover, desative e apague o plugin.
+Para desligar o acesso de uma ferramenta, clique em "Revogar" na linha dela. Para remover tudo,
+desative e apague o plugin.
 
 Opcional (mais seguro, tira a chave do banco): em vez de gerar pela tela, defina no
 wp-config.php, antes de /* That's all, stop editing! */:
 
    define( 'SV_FILE_BRIDGE_KEY', 'chave-de-64-caracteres' );
 
-A constante tem prioridade sobre a chave gerada na tela.
+A constante tem prioridade sobre as chaves criadas na tela e desliga a tabela.
 
 == Ferramentas MCP ==
 
@@ -97,3 +102,16 @@ Autenticação: X-SV-Bridge-Key: <chave> ou Authorization: Bearer <chave>
 
 Aviso: quem tiver a chave pode escrever código PHP no site. Trate como senha de administrador
 e revogue quando o trabalho terminar.
+
+== Changelog ==
+
+= 2.3.0 =
+* Tabela de chaves: cada chave tem nome da ferramenta conectada, data de criação, último uso
+  com IP, editar nome e revogar. A chave só sai da lista quando é revogada.
+* Várias chaves ao mesmo tempo: cada ferramenta usa a sua e revogar uma não derruba as outras.
+* Correção: ferramentas sem parâmetros iam com "properties": [] e listas de tipo iam como
+  "type": ["string","integer"], o que é schema JSON inválido e fazia o provedor recusar a
+  lista inteira de ferramentas. Agora sai "properties": {} e "anyOf".
+* Botão "Liberar bloqueio" para zerar o limite de tentativas do próprio IP.
+* Avisos de confirmação para criar, renomear e revogar.
+* Migração automática da chave única anterior para a tabela.

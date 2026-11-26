@@ -78,7 +78,9 @@ class SV_Bridge_Auth {
 			);
 		}
 
-		if ( ! hash_equals( sv_bridge_key(), $provided ) ) {
+		$hit = sv_bridge_verify_key( $provided );
+
+		if ( false === $hit ) {
 			self::register_failure( $ip );
 
 			SV_Bridge_Log::add( sprintf( 'chave inválida de %s', $ip ), $request->get_route() );
@@ -91,6 +93,11 @@ class SV_Bridge_Auth {
 		}
 
 		self::clear_failures( $ip );
+
+		// Registra o último uso da chave (não bloqueia a resposta).
+		if ( function_exists( 'sv_bridge_touch_key' ) ) {
+			sv_bridge_touch_key( $hit, $ip );
+		}
 
 		return true;
 	}
@@ -153,6 +160,24 @@ class SV_Bridge_Auth {
 	 */
 	private static function clear_failures( $ip ) {
 		delete_transient( self::failure_key( $ip ) );
+	}
+
+	/**
+	 * Libera o bloqueio do próprio visitante (botão do painel).
+	 *
+	 * @return void
+	 */
+	public static function unlock_current_ip() {
+		self::clear_failures( self::client_ip() );
+	}
+
+	/**
+	 * IP do visitante atual, para exibir no painel.
+	 *
+	 * @return string
+	 */
+	public static function current_ip() {
+		return self::client_ip();
 	}
 
 	/**
