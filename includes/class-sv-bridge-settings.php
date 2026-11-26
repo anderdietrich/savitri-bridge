@@ -71,6 +71,146 @@ function sv_bridge_sanitize_bool( $value ) {
 }
 
 /**
+ * Captura os avisos de outros plugins nesta tela.
+ *
+ * O wp-admin imprime os avisos de "admin_notices" no topo da área de conteúdo,
+ * antes do nosso HTML — e eles acabam aparecendo no meio do nosso cabeçalho, com
+ * o layout do wp-admin e não com o do painel. Aqui os avisos são executados na
+ * hora e guardados para serem impressos no nosso próprio bloco.
+ *
+ * Roda em "current_screen", que é antes de o wp-admin imprimir qualquer aviso.
+ *
+ * @return void
+ */
+function sv_bridge_capture_admin_notices() {
+	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+
+	if ( ! $screen || 'settings_page_sv-bridge' !== $screen->id ) {
+		return;
+	}
+
+	// "Configurações salvas." do options.php vira um aviso nosso.
+	if ( isset( $_GET['settings-updated'] ) ) {
+		$GLOBALS['sv_bridge_settings_saved'] = true;
+		unset( $_GET['settings-updated'] );
+	}
+
+	global $wp_filter;
+
+	$captured = array();
+
+	foreach ( array( 'admin_notices', 'all_admin_notices' ) as $hook ) {
+		if ( empty( $wp_filter[ $hook ] ) || empty( $wp_filter[ $hook ]->callbacks ) ) {
+			continue;
+		}
+
+		$callbacks = $wp_filter[ $hook ]->callbacks;
+		ksort( $callbacks );
+
+		foreach ( $callbacks as $list ) {
+			foreach ( $list as $cb ) {
+				if ( ! isset( $cb['function'] ) || ! is_callable( $cb['function'] ) ) {
+					continue;
+				}
+
+				ob_start();
+				call_user_func_array( $cb['function'], array() );
+				$html = trim( (string) ob_get_clean() );
+
+				if ( '' !== $html ) {
+					$captured[] = $html;
+				}
+			}
+		}
+
+		remove_all_actions( $hook );
+	}
+
+	$GLOBALS['sv_bridge_captured_notices'] = $captured;
+}
+add_action( 'current_screen', 'sv_bridge_capture_admin_notices' );
+
+/**
+ * Tipo do aviso, a partir das classes do wp-admin.
+ *
+ * @param string $html HTML do aviso.
+ * @return string ok|error|warn|info
+ */
+function sv_bridge_notice_type( $html ) {
+	if ( false !== strpos( $html, 'notice-error' ) || false !== strpos( $html, 'notice-danger' ) ) {
+		return 'error';
+	}
+
+	if ( false !== strpos( $html, 'notice-warning' ) || false !== strpos( $html, 'notice-warn' ) ) {
+		return 'warn';
+	}
+
+	if ( false !== strpos( $html, 'notice-info' ) ) {
+		return 'info';
+	}
+
+	return 'ok';
+}
+
+/**
+ * Tira o que é do wp-admin de dentro de um aviso capturado: a div externa
+ * (o nosso bloco já é o cartão) e o botão de dispensar original (temos o nosso).
+ *
+ * @param string $html HTML do aviso.
+ * @return string Conteúdo interno.
+ */
+function sv_bridge_notice_inner( $html ) {
+	$html = (string) $html;
+
+	// Botão "dispensar" do wp-admin, com ou sem o texto escondido dentro.
+	$html = preg_replace( '#<button[^>]*notice-dismiss[^>]*>.*?</button>#is', '', $html );
+	$html = preg_replace( '#<button[^>]*notice-dismiss[^>]*/?>#is', '', $html );
+
+	// Ícone de "dashicons" que só faz sentido no layout do wp-admin.
+	$html = preg_replace( '#<span[^>]*class="[^"]*dashicons[^"]*"[^>]*>\s*</span>#is', '', $html );
+
+	// A div externa do aviso.
+	$html = preg_replace( '#^\s*<div[^>]*class="[^"]*\bnotice\b[^"]*"[^>]*>#is', '', $html );
+	$html = preg_replace( '#</div>\s*$#is', '', $html );
+
+	return trim( $html );
+}
+
+/**
+ * Botão de fechar dos avisos.
+ *
+ * @return void
+ */
+function sv_bridge_close_button() {
+	printf(
+		'<button type="button" class="sv-alert__close" aria-label="%s" title="%s"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>',
+		esc_attr__( 'Fechar aviso', 'savitri-file-bridge' ),
+		esc_attr__( 'Fechar aviso', 'savitri-file-bridge' )
+	);
+}
+
+/**
+ * Imprime um aviso no layout do painel.
+ *
+ * @param string $type ok|error|warn|info.
+ * @param string $body Texto simples (escapado) ou HTML já tratado.
+ * @param bool   $html O corpo é HTML?
+ * @return void
+ */
+function sv_bridge_render_alert( $type, $body, $html = false ) {
+	printf( '<div class="sv-alert sv-alert--%s">', esc_attr( $type ) );
+
+	if ( $html ) {
+		echo '<div class="sv-alert__body">' . wp_kses_post( $body ) . '</div>';
+	} else {
+		echo '<p>' . esc_html( $body ) . '</p>';
+	}
+
+	sv_bridge_close_button();
+	echo '</div>';
+}
+
+/**
  * URL da tela de configuração.
  *
  * @return string
@@ -313,35 +453,36 @@ function sv_bridge_render_settings() {
 			</div>
 		</header>
 
-		<?php if ( 'created' === $notice ) : ?>
-			<div class="sv-alert sv-alert--ok"><p><?php printf( esc_html__( 'Chave «%s» criada. Clique em Copiar na linha dela e cole no campo de token do conector.', 'savitri-file-bridge' ), esc_html( $name ) ); ?></p></div>
-		<?php elseif ( 'renamed' === $notice ) : ?>
-			<div class="sv-alert sv-alert--ok"><p><?php printf( esc_html__( 'Nome da chave atualizado para «%s».', 'savitri-file-bridge' ), esc_html( $name ) ); ?></p></div>
-		<?php elseif ( 'revoked' === $notice ) : ?>
-			<div class="sv-alert sv-alert--ok"><p>
-				<?php
-				if ( '' !== $name ) {
-					printf( esc_html__( 'Chave «%s» revogada. O acesso com ela está encerrado e ela saiu da lista.', 'savitri-file-bridge' ), esc_html( $name ) );
-				} else {
-					esc_html_e( 'Chave revogada. O acesso com ela está encerrado e ela saiu da lista.', 'savitri-file-bridge' );
-				}
-				?>
-			</p></div>
-		<?php elseif ( 'unlocked' === $notice ) : ?>
-			<div class="sv-alert sv-alert--ok"><p><?php esc_html_e( 'Bloqueio de tentativas liberado para o seu IP. O cache das rotas do canal também foi descartado.', 'savitri-file-bridge' ); ?></p></div>
-		<?php elseif ( 'update_found' === $notice ) : ?>
-			<div class="sv-alert sv-alert--ok"><p><?php esc_html_e( 'Nova versão encontrada. Atualize seu Plugin!', 'savitri-file-bridge' ); ?></p></div>
-		<?php elseif ( 'update_current' === $notice ) : ?>
-			<div class="sv-alert sv-alert--ok"><p><?php esc_html_e( 'Você está na versão mais recente publicada.', 'savitri-file-bridge' ); ?></p></div>
-		<?php elseif ( 'update_error' === $notice ) : ?>
-			<div class="sv-alert sv-alert--error"><p><?php echo esc_html( $upd_err ? $upd_err : __( 'Não foi possível consultar o GitHub.', 'savitri-file-bridge' ) ); ?></p></div>
-		<?php elseif ( 'no_name' === $notice ) : ?>
-			<div class="sv-alert sv-alert--error"><p><?php esc_html_e( 'Dê um nome à chave: ele identifica a ferramenta conectada.', 'savitri-file-bridge' ); ?></p></div>
-		<?php elseif ( 'not_found' === $notice ) : ?>
-			<div class="sv-alert sv-alert--error"><p><?php esc_html_e( 'Chave não encontrada. A lista pode ter mudado.', 'savitri-file-bridge' ); ?></p></div>
-		<?php elseif ( 'constant' === $notice ) : ?>
-			<div class="sv-alert sv-alert--warn"><p><?php esc_html_e( 'A chave está definida no wp-config.php. Para gerenciá-la por aqui, remova a constante SV_FILE_BRIDGE_KEY.', 'savitri-file-bridge' ); ?></p></div>
-		<?php endif; ?>
+		<?php
+		// Avisos do painel, no mesmo layout. Todos fecham no X.
+		if ( ! empty( $GLOBALS['sv_bridge_settings_saved'] ) ) {
+			sv_bridge_render_alert( 'ok', __( 'Configurações salvas.', 'savitri-file-bridge' ) );
+		}
+
+		$sv_notices = array(
+			'created'        => array( 'ok', sprintf( /* translators: %s: nome da chave */ __( 'Chave «%s» criada. Clique em Copiar na linha dela e cole no campo de token do conector.', 'savitri-file-bridge' ), $name ) ),
+			'renamed'        => array( 'ok', sprintf( /* translators: %s: nome da chave */ __( 'Nome da chave atualizado para «%s».', 'savitri-file-bridge' ), $name ) ),
+			'revoked'        => array( 'ok', '' !== $name
+				? sprintf( /* translators: %s: nome da chave */ __( 'Chave «%s» revogada. O acesso com ela está encerrado e ela saiu da lista.', 'savitri-file-bridge' ), $name )
+				: __( 'Chave revogada. O acesso com ela está encerrado e ela saiu da lista.', 'savitri-file-bridge' ) ),
+			'unlocked'       => array( 'ok', __( 'Bloqueio de tentativas liberado para o seu IP. O cache das rotas do canal também foi descartado.', 'savitri-file-bridge' ) ),
+			'update_found'   => array( 'ok', __( 'Nova versão encontrada. Atualize seu Plugin!', 'savitri-file-bridge' ) ),
+			'update_current' => array( 'ok', __( 'Você está na versão mais recente publicada.', 'savitri-file-bridge' ) ),
+			'update_error'   => array( 'error', $upd_err ? (string) $upd_err : __( 'Não foi possível consultar o GitHub.', 'savitri-file-bridge' ) ),
+			'no_name'        => array( 'error', __( 'Dê um nome à chave: ele identifica a ferramenta conectada.', 'savitri-file-bridge' ) ),
+			'not_found'      => array( 'error', __( 'Chave não encontrada. A lista pode ter mudado.', 'savitri-file-bridge' ) ),
+			'constant'       => array( 'warn', __( 'A chave está definida no wp-config.php. Para gerenciá-la por aqui, remova a constante SV_FILE_BRIDGE_KEY.', 'savitri-file-bridge' ) ),
+		);
+
+		if ( isset( $sv_notices[ $notice ] ) ) {
+			sv_bridge_render_alert( $sv_notices[ $notice ][0], $sv_notices[ $notice ][1] );
+		}
+
+		// Avisos de outros plugins (ex.: "Todos os caches foram limpos."), trazidos para cá.
+		foreach ( (array) ( $GLOBALS['sv_bridge_captured_notices'] ?? array() ) as $sv_other ) {
+			sv_bridge_render_alert( sv_bridge_notice_type( $sv_other ), sv_bridge_notice_inner( $sv_other ), true );
+		}
+		?>
 
 		<div class="sv-grid">
 
@@ -368,7 +509,7 @@ function sv_bridge_render_settings() {
 							<?php wp_nonce_field( 'sv_bridge_create' ); ?>
 							<div class="sv-field">
 								<label for="sv-bridge-new-name"><?php esc_html_e( 'Nome da ferramenta conectada', 'savitri-file-bridge' ); ?></label>
-								<input type="text" id="sv-bridge-new-name" name="sv_bridge_name" required maxlength="80" placeholder="<?php esc_attr_e( 'Ex.: Maestro — Bob', 'savitri-file-bridge' ); ?>" <?php disabled( 'constant' === $source ); ?>>
+								<input type="text" id="sv-bridge-new-name" name="sv_bridge_name" required maxlength="80" placeholder="<?php esc_attr_e( 'Ex.: Ferramenta', 'savitri-file-bridge' ); ?>" <?php disabled( 'constant' === $source ); ?>>
 							</div>
 							<?php submit_button( __( 'Criar chave', 'savitri-file-bridge' ), 'primary', 'submit', false, 'constant' === $source ? array( 'disabled' => 'disabled' ) : array() ); ?>
 						</form>
@@ -569,6 +710,14 @@ function sv_bridge_render_settings() {
 			var copyLabel   = <?php echo wp_json_encode( __( 'Copiar', 'savitri-file-bridge' ) ); ?>;
 			var copiedLabel = <?php echo wp_json_encode( __( 'Copiado!', 'savitri-file-bridge' ) ); ?>;
 			var failLabel   = <?php echo wp_json_encode( __( 'Copie à mão', 'savitri-file-bridge' ) ); ?>;
+
+			// Fecha o aviso no X (sem recarregar; a mensagem já foi lida).
+			document.querySelectorAll( '.sv-alert__close' ).forEach( function ( btn ) {
+				btn.addEventListener( 'click', function () {
+					var alert = btn.closest( '.sv-alert' );
+					if ( alert ) { alert.remove(); }
+				} );
+			} );
 
 			// O switch de permissão salva na hora: não há botão "Salvar".
 			document.querySelectorAll( '[data-autosave]' ).forEach( function ( box ) {

@@ -222,6 +222,81 @@
 	margin: 0;
 }
 
+.sv-alert {
+	position: relative;
+	padding-right: 44px;
+}
+
+.sv-alert__body {
+	flex: 1 1 auto;
+	min-width: 0;
+	color: inherit;
+	font-size: 13.5px;
+}
+
+.sv-alert__body p {
+	margin: 0 0 6px;
+	color: inherit;
+}
+
+.sv-alert__body p:last-child {
+	margin-bottom: 0;
+}
+
+.sv-alert__body ul,
+.sv-alert__body ol {
+	margin: 0 0 6px;
+	padding-left: 20px;
+}
+
+.sv-alert__body a {
+	color: inherit;
+	text-decoration: underline;
+}
+
+.sv-alert__close {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	display: grid;
+	place-items: center;
+	width: 26px;
+	height: 26px;
+	min-height: 26px !important;
+	padding: 0 !important;
+	line-height: 1 !important;
+	border: 0 !important;
+	border-radius: 7px !important;
+	background: transparent !important;
+	color: currentColor !important;
+	opacity: 0.55;
+	cursor: pointer;
+	box-shadow: none !important;
+	transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.sv-alert__close:hover,
+.sv-alert__close:focus {
+	opacity: 1;
+	background: rgba(13, 27, 43, 0.09) !important;
+}
+
+.sv-alert--ok .sv-alert__close:hover,
+.sv-alert--ok .sv-alert__close:focus {
+	background: rgba(17, 96, 58, 0.12) !important;
+}
+
+.sv-alert--error .sv-alert__close:hover,
+.sv-alert--error .sv-alert__close:focus {
+	background: rgba(140, 29, 23, 0.12) !important;
+}
+
+.sv-alert__close:focus-visible {
+	outline: 2px solid currentColor;
+	outline-offset: 1px;
+	opacity: 1;
+}
+
 .sv-alert--ok {
 	color: var(--sv-green);
 	background: var(--sv-green-soft);
@@ -250,6 +325,16 @@
 
 .sv-alert--error p {
 	color: #8c1d17;
+}
+
+.sv-alert--info {
+	color: #1256b8;
+	background: #eaf1fd;
+	border-color: #c6d9f7;
+}
+
+.sv-alert--info p {
+	color: #124a94;
 }
 
 /* ---------- cards ---------- */
@@ -322,7 +407,7 @@
 	display: flex;
 	flex-wrap: wrap;
 	gap: 10px;
-	align-items: stretch;
+	align-items: flex-end;
 }
 
 .sv-field {
@@ -330,8 +415,19 @@
 	min-width: 200px;
 }
 
+/* O botão do formulário de criação acompanha a altura do campo. */
+.sv-create .button,
+.sv-create .button-primary {
+	height: 40px;
+	min-height: 40px !important;
+	line-height: 38px !important;
+	padding: 0 18px !important;
+	flex: 0 0 auto;
+}
+
 .sv-field label {
 	display: block;
+	line-height: 16px;
 	margin-bottom: 6px;
 	font-size: 12px;
 	font-weight: 600;
@@ -343,7 +439,8 @@
 .sv-app input[type="text"],
 .sv-app input[type="password"] {
 	width: 100%;
-	min-height: 38px;
+	height: 40px;
+	min-height: 40px;
 	padding: 8px 12px;
 	border: 1px solid #cfd8e3;
 	border-radius: 10px;
