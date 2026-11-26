@@ -3,8 +3,8 @@
  * Atualização pelo GitHub: descobre a versão publicada e entrega ao WordPress
  * no formato que ele já entende (transient update_plugins).
  *
- * O repositório pode ser privado: nesse caso basta colar um token do GitHub na
- * tela. O token é usado só nas chamadas à API e no download do .zip.
+ * O repositório é público, então a consulta e o download do .zip funcionam sem
+ * autenticação nenhuma.
  *
  * @package savitri-file-bridge
  */
@@ -12,23 +12,12 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Repositório consultado ("usuario/repo").
+ * Repositório público de onde saem as versões. Fixo: é de onde este plugin vem.
  *
  * @return string
  */
 function sv_bridge_github_repo() {
-	$repo = (string) get_option( 'sv_bridge_github_repo', 'anderdietrich/savitri-bridge' );
-
-	return preg_match( '#^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$#', $repo ) ? $repo : '';
-}
-
-/**
- * Token do GitHub (opcional, só para repositório privado).
- *
- * @return string
- */
-function sv_bridge_github_token() {
-	return trim( (string) get_option( 'sv_bridge_github_token', '' ) );
+	return 'anderdietrich/savitri-bridge';
 }
 
 /**
@@ -75,12 +64,6 @@ function sv_bridge_github_api( $path, $fresh = false ) {
 		),
 	);
 
-	$token = sv_bridge_github_token();
-
-	if ( '' !== $token ) {
-		$args['headers']['Authorization'] = 'Bearer ' . $token;
-	}
-
 	$url      = 'https://api.github.com/repos/' . $repo . $path;
 	$response = wp_remote_get( $url, $args );
 
@@ -94,12 +77,12 @@ function sv_bridge_github_api( $path, $fresh = false ) {
 	if ( 404 === $code ) {
 		return new WP_Error(
 			'sv_gh_not_found',
-			__( 'Repositório ou publicação não encontrada. Se o repositório for privado, cole um token do GitHub.', 'savitri-file-bridge' )
+			__( 'Não encontrei o repositório de versões no GitHub.', 'savitri-file-bridge' )
 		);
 	}
 
 	if ( 401 === $code || 403 === $code ) {
-		return new WP_Error( 'sv_gh_auth', __( 'O GitHub recusou o token. Confira se ele tem permissão de leitura no repositório.', 'savitri-file-bridge' ) );
+		return new WP_Error( 'sv_gh_auth', __( 'O GitHub recusou a consulta (limite de acessos da API). Tente mais tarde.', 'savitri-file-bridge' ) );
 	}
 
 	if ( $code < 200 || $code >= 300 || ! is_array( $body ) ) {
@@ -231,45 +214,6 @@ function sv_bridge_github_latest( $fresh = false ) {
 
 	return $best;
 }
-
-/**
- * Endereço do .zip com o cabeçalho de token, para repositório privado.
- *
- * @param string $url Endereço.
- * @return string
- */
-function sv_bridge_updater_download_url( $url ) {
-	return $url;
-}
-
-/**
- * Acrescenta o token nas chamadas ao GitHub que o WordPress faz por conta
- * própria (o download do .zip na atualização).
- *
- * @param array  $args Argumentos da requisição.
- * @param string $url  Endereço.
- * @return array
- */
-function sv_bridge_http_add_token( $args, $url ) {
-	$token = sv_bridge_github_token();
-
-	if ( '' === $token || 0 !== strpos( (string) $url, 'https://' ) ) {
-		return $args;
-	}
-
-	$host = wp_parse_url( (string) $url, PHP_URL_HOST );
-
-	if ( ! in_array( $host, array( 'api.github.com', 'github.com', 'objects.githubusercontent.com', 'codeload.github.com' ), true ) ) {
-		return $args;
-	}
-
-	$args['headers'] = isset( $args['headers'] ) && is_array( $args['headers'] ) ? $args['headers'] : array();
-
-	$args['headers']['Authorization'] = 'Bearer ' . $token;
-
-	return $args;
-}
-add_filter( 'http_request_args', 'sv_bridge_http_add_token', 10, 2 );
 
 /**
  * Entrega a versão publicada ao WordPress, na forma que ele usa para

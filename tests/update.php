@@ -66,13 +66,8 @@ check( 'v2.4.0-beta → 2.4.0', '2.4.0' === sv_bridge_clean_version( 'v2.4.0-bet
 check( 'vazio → 0', '0' === sv_bridge_clean_version( '' ) );
 check( 'comparação funciona', version_compare( '2.5.0', '2.4.0', '>' ) );
 
-echo "\n== Repositório configurado ==\n";
-check( 'padrão é o repo do plugin', 'anderdietrich/savitri-bridge' === sv_bridge_github_repo() );
-$GLOBALS['__opts']['sv_bridge_github_repo'] = 'invalido';
-check( 'repo inválido é recusado', '' === sv_bridge_github_repo() );
-$GLOBALS['__opts']['sv_bridge_github_repo'] = 'outro/repo';
-check( 'repo válido é aceito', 'outro/repo' === sv_bridge_github_repo() );
-$GLOBALS['__opts']['sv_bridge_github_repo'] = 'anderdietrich/savitri-bridge';
+echo "\n== Repositório fixo ==\n";
+check( 'repositório do plugin', 'anderdietrich/savitri-bridge' === sv_bridge_github_repo() );
 
 echo "\n== Escolhe a release mais recente, não a primeira da lista ==\n";
 $GLOBALS['transients'] = array();
@@ -114,14 +109,14 @@ $GLOBALS['__http'] = array(
 	'https://api.github.com/repos/anderdietrich/savitri-bridge/tags'     => array( 404, array() ),
 );
 $err = sv_bridge_github_latest( true );
-check( '404 vira erro com dica de token', is_wp_error( $err ) && false !== strpos( $err->get_error_message(), 'token' ), is_wp_error( $err ) ? $err->get_error_message() : '' );
+check( '404 vira erro explicado', is_wp_error( $err ) && false !== strpos( $err->get_error_message(), 'repositório' ), is_wp_error( $err ) ? $err->get_error_message() : '' );
 
 $GLOBALS['transients'] = array();
 $GLOBALS['__http'] = array(
 	'https://api.github.com/repos/anderdietrich/savitri-bridge/releases' => array( 401, array() ),
 );
 $err = sv_bridge_github_latest( true );
-check( '401 vira erro de token', is_wp_error( $err ) && 'sv_gh_auth' === $err->get_error_code() );
+check( '401 vira erro de API', is_wp_error( $err ) && 'sv_gh_auth' === $err->get_error_code() );
 
 echo "\n== Aviso de atualização no WordPress ==\n";
 $GLOBALS['transients'] = array();
@@ -150,13 +145,22 @@ $transient = (object) array( 'response' => array(), 'checked' => array() );
 $out = sv_bridge_check_update( $transient );
 check( 'nada em response', ! isset( $out->response[ $plugin ] ) || ! isset( $out->response[ $plugin ]->new_version ) );
 
-echo "\n== Token só vai para o GitHub ==\n";
-$GLOBALS['__opts']['sv_bridge_github_token'] = 'ghp_teste';
-$args = sv_bridge_http_add_token( array(), 'https://api.github.com/repos/a/b/releases' );
-check( 'token no api.github.com', 'Bearer ghp_teste' === ( $args['headers']['Authorization'] ?? '' ) );
-$args = sv_bridge_http_add_token( array(), 'https://site-do-cliente.com/x.zip' );
-check( 'token NÃO vai para outro site', ! isset( $args['headers']['Authorization'] ) );
-$GLOBALS['__opts']['sv_bridge_github_token'] = '';
+echo "\n== Sem credencial: repositório é fixo e público ==\n";
+check( 'repositório fixo', 'anderdietrich/savitri-bridge' === sv_bridge_github_repo() );
+check( 'nenhuma opção de repositório é lida', '' === (string) get_option( 'sv_bridge_github_repo', '' ) );
+check( 'não existe mais função de token', ! function_exists( 'sv_bridge_github_token' ) );
+check( 'não existe mais filtro de token', ! function_exists( 'sv_bridge_http_add_token' ) );
+
+$GLOBALS['transients'] = array();
+$GLOBALS['__http'] = array(
+	'https://api.github.com/repos/anderdietrich/savitri-bridge/releases' => array( 200, array(
+		array( 'tag_name' => 'v3.0.0', 'draft' => false, 'html_url' => 'u', 'assets' => array(
+			array( 'name' => 'savitri-file-bridge.zip', 'browser_download_url' => 'https://github.com/x/y.zip' ),
+		) ),
+	) ),
+);
+$latest = sv_bridge_github_latest( true );
+check( 'consulta funciona sem credencial', ! is_wp_error( $latest ) && '3.0.0' === $latest['version'], is_wp_error( $latest ) ? $latest->get_error_message() : '' );
 
 echo "\n----------------------------------------\n";
 echo "passou: $pass   falhou: $fail\n";

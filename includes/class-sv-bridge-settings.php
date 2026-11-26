@@ -57,25 +57,6 @@ function sv_bridge_register_settings() {
 		)
 	);
 
-	register_setting(
-		'sv_bridge',
-		'sv_bridge_github_repo',
-		array(
-			'type'              => 'string',
-			'sanitize_callback' => 'sv_bridge_sanitize_repo',
-			'default'           => 'anderdietrich/savitri-bridge',
-		)
-	);
-
-	register_setting(
-		'sv_bridge',
-		'sv_bridge_github_token',
-		array(
-			'type'              => 'string',
-			'sanitize_callback' => 'sv_bridge_sanitize_token',
-			'default'           => '',
-		)
-	);
 }
 add_action( 'admin_init', 'sv_bridge_register_settings' );
 
@@ -87,47 +68,6 @@ add_action( 'admin_init', 'sv_bridge_register_settings' );
  */
 function sv_bridge_sanitize_bool( $value ) {
 	return (bool) $value;
-}
-
-/**
- * Sanitiza "usuario/repo".
- *
- * @param string $value Valor.
- * @return string
- */
-function sv_bridge_sanitize_repo( $value ) {
-	$value = trim( (string) $value );
-	$value = preg_replace( '#^https?://github\.com/#i', '', $value );
-	$value = trim( $value, '/' );
-
-	if ( '' === $value ) {
-		return '';
-	}
-
-	if ( ! preg_match( '#^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$#', $value ) ) {
-		add_settings_error( 'sv_bridge', 'sv_bridge_repo', __( 'Use o formato usuario/repositorio, por exemplo ander/meu-plugin.', 'savitri-file-bridge' ), 'error' );
-
-		return (string) get_option( 'sv_bridge_github_repo', '' );
-	}
-
-	return $value;
-}
-
-/**
- * Sanitiza o token do GitHub. Em branco mantém o que já está gravado, para o
- * campo mascarado não apagar o token a cada "Salvar".
- *
- * @param string $value Valor.
- * @return string
- */
-function sv_bridge_sanitize_token( $value ) {
-	$value = trim( (string) $value );
-
-	if ( '' === $value ) {
-		return (string) get_option( 'sv_bridge_github_token', '' );
-	}
-
-	return preg_replace( '/\s+/', '', $value );
 }
 
 /**
@@ -302,8 +242,6 @@ function sv_bridge_render_settings() {
 	$name     = isset( $_GET['sv_bridge_name'] ) ? sanitize_text_field( rawurldecode( wp_unslash( $_GET['sv_bridge_name'] ) ) ) : '';
 	$log      = SV_Bridge_Log::tail( 40 );
 	$update   = sv_bridge_update_status();
-	$repo     = (string) get_option( 'sv_bridge_github_repo', 'anderdietrich/savitri-bridge' );
-	$has_tok  = '' !== sv_bridge_github_token();
 	$upd_err  = get_transient( 'sv_bridge_update_error' );
 	?>
 	<div class="wrap">
@@ -330,17 +268,24 @@ function sv_bridge_render_settings() {
 					?>
 				</span>
 				<?php if ( $update['ok'] && $update['newer'] ) : ?>
-					<a class="sv-pill" href="<?php echo esc_url( sv_bridge_upgrade_url() ); ?>" style="text-decoration:none;background:rgba(61,220,132,.18);border-color:rgba(61,220,132,.45);">
-						<span class="sv-pill__dot" style="background:#3ddc84;"></span>
+					<a class="sv-hero__update" href="<?php echo esc_url( sv_bridge_upgrade_url() ); ?>">
+						<span class="sv-hero__update-icon" aria-hidden="true">&#8593;</span>
 						<?php
 						printf(
 							/* translators: %s: versão publicada */
-							esc_html__( 'v%s disponível', 'savitri-file-bridge' ),
+							esc_html__( 'Atualizar para %s', 'savitri-file-bridge' ),
 							esc_html( $update['latest'] )
 						);
 						?>
 					</a>
 				<?php endif; ?>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="sv-hero__check">
+					<input type="hidden" name="action" value="sv_bridge_check">
+					<?php wp_nonce_field( 'sv_bridge_check' ); ?>
+					<button type="submit" class="sv-icon-btn" title="<?php esc_attr_e( 'Verificar se há versão mais nova', 'savitri-file-bridge' ); ?>" aria-label="<?php esc_attr_e( 'Verificar se há versão mais nova', 'savitri-file-bridge' ); ?>">
+						<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+					</button>
+				</form>
 			</div>
 		</header>
 
@@ -494,80 +439,42 @@ function sv_bridge_render_settings() {
 				<section class="sv-card">
 					<div class="sv-card__head">
 						<div>
-							<h2 class="sv-card__title"><?php esc_html_e( 'Atualizações pelo GitHub', 'savitri-file-bridge' ); ?></h2>
-							<p class="sv-card__hint"><?php esc_html_e( 'O painel de plugins consulta este repositório e mostra quando há versão nova.', 'savitri-file-bridge' ); ?></p>
+							<h2 class="sv-card__title"><?php esc_html_e( 'Permissão do canal', 'savitri-file-bridge' ); ?></h2>
+							<p class="sv-card__hint"><?php esc_html_e( 'O que as chaves acima podem fazer no site.', 'savitri-file-bridge' ); ?></p>
 						</div>
-						<?php if ( $update['ok'] ) : ?>
-							<?php if ( $update['newer'] ) : ?>
-								<a class="button button-primary" href="<?php echo esc_url( sv_bridge_upgrade_url() ); ?>">
-									<?php
-									printf(
-										/* translators: %s: versão publicada */
-										esc_html__( 'Atualizar para %s', 'savitri-file-bridge' ),
-										esc_html( $update['latest'] )
-									);
-									?>
-								</a>
-							<?php else : ?>
-								<span class="sv-badge sv-badge--used"><?php esc_html_e( 'atualizado', 'savitri-file-bridge' ); ?></span>
-							<?php endif; ?>
-						<?php endif; ?>
 					</div>
 					<div class="sv-card__body">
-						<dl class="sv-info" style="margin-bottom:16px;">
-							<div class="sv-info__row">
-								<dt><?php esc_html_e( 'Instalada', 'savitri-file-bridge' ); ?></dt>
-								<dd><strong><?php echo esc_html( SV_BRIDGE_VERSION ); ?></strong></dd>
-							</div>
-							<div class="sv-info__row">
-								<dt><?php esc_html_e( 'No GitHub', 'savitri-file-bridge' ); ?></dt>
-								<dd>
-									<?php if ( ! $update['ok'] ) : ?>
-										<span style="color:#b3261e;"><?php echo esc_html( $update['error'] ); ?></span>
-									<?php elseif ( $update['newer'] ) : ?>
-										<a href="<?php echo esc_url( $update['url'] ); ?>" target="_blank" rel="noopener noreferrer"><strong><?php echo esc_html( $update['latest'] ); ?></strong></a>
-										<span class="sv-sub"><?php echo esc_html( '' !== $update['date'] ? $update['date'] : '' ); ?></span>
-									<?php else : ?>
-										<strong><?php echo esc_html( $update['latest'] ); ?></strong> — <?php esc_html_e( 'a mais recente', 'savitri-file-bridge' ); ?>
-									<?php endif; ?>
-								</dd>
-							</div>
-							<div class="sv-info__row">
-								<dt><?php esc_html_e( 'Repositório', 'savitri-file-bridge' ); ?></dt>
-								<dd><code><?php echo esc_html( '' !== $repo ? $repo : '—' ); ?></code></dd>
-							</div>
-						</dl>
-
-						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-bottom:14px;">
-							<input type="hidden" name="action" value="sv_bridge_check">
-							<?php wp_nonce_field( 'sv_bridge_check' ); ?>
-							<button type="submit" class="button"><?php esc_html_e( 'Verificar agora', 'savitri-file-bridge' ); ?></button>
-						</form>
-
-						<form method="post" action="options.php">
+						<form method="post" action="options.php" id="sv-bridge-perms">
 							<?php settings_fields( 'sv_bridge' ); ?>
-							<div class="sv-create" style="margin-bottom:12px;">
-								<div class="sv-field">
-									<label for="sv-bridge-repo"><?php esc_html_e( 'Repositório', 'savitri-file-bridge' ); ?></label>
-									<input type="text" id="sv-bridge-repo" name="sv_bridge_github_repo" value="<?php echo esc_attr( $repo ); ?>" placeholder="usuario/repositorio">
-								</div>
-								<div class="sv-field">
-									<label for="sv-bridge-token"><?php esc_html_e( 'Token do GitHub (repositório privado)', 'savitri-file-bridge' ); ?></label>
-									<input type="password" id="sv-bridge-token" name="sv_bridge_github_token" value="" placeholder="<?php echo $has_tok ? esc_attr__( 'token gravado — deixe em branco para manter', 'savitri-file-bridge' ) : esc_attr__( 'ghp_… (opcional)', 'savitri-file-bridge' ); ?>" autocomplete="off">
-								</div>
-							</div>
 							<input type="hidden" name="sv_bridge_readonly" value="0">
-							<label class="sv-switch" style="margin-bottom:12px;">
-								<input type="checkbox" name="sv_bridge_readonly" value="1" <?php checked( $readonly ); ?>>
+							<label class="sv-switch">
+								<input type="checkbox" name="sv_bridge_readonly" value="1" <?php checked( $readonly ); ?> data-autosave>
 								<span class="sv-switch__text">
 									<strong><?php esc_html_e( 'Modo somente leitura', 'savitri-file-bridge' ); ?></strong>
 									<?php esc_html_e( 'Permite apenas listar e ler. Bloqueia gravar, apagar, extrair, ativar tema e plugin.', 'savitri-file-bridge' ); ?>
 								</span>
 							</label>
-							<?php submit_button( __( 'Salvar ajustes', 'savitri-file-bridge' ), 'primary', 'submit', false ); ?>
 						</form>
+						<p class="sv-footnote" style="margin:10px 0 0;"><?php esc_html_e( 'A mudança é salva na hora — não há botão de salvar.', 'savitri-file-bridge' ); ?></p>
 					</div>
 				</section>
+
+				<section class="sv-card">
+					<div class="sv-card__head">
+						<div>
+							<h2 class="sv-card__title"><?php esc_html_e( 'Últimas operações', 'savitri-file-bridge' ); ?></h2>
+							<p class="sv-card__hint"><?php esc_html_e( 'O que o conector e o painel fizeram recentemente.', 'savitri-file-bridge' ); ?></p>
+						</div>
+					</div>
+					<div class="sv-card__body">
+						<?php if ( ! $log ) : ?>
+							<p class="sv-footnote" style="margin:0;"><?php esc_html_e( 'Nenhuma operação registrada.', 'savitri-file-bridge' ); ?></p>
+						<?php else : ?>
+							<pre class="sv-logbox"><?php echo esc_html( implode( "\n", $log ) ); ?></pre>
+						<?php endif; ?>
+					</div>
+				</section>
+
 			</main>
 
 			<aside>
@@ -631,21 +538,6 @@ function sv_bridge_render_settings() {
 					</div>
 				</section>
 
-				<section class="sv-card">
-					<div class="sv-card__head">
-						<h2 class="sv-card__title"><?php esc_html_e( 'Últimas operações', 'savitri-file-bridge' ); ?></h2>
-					</div>
-					<div class="sv-card__body">
-						<?php if ( ! $log ) : ?>
-							<p class="sv-footnote" style="margin:0;"><?php esc_html_e( 'Nenhuma operação registrada.', 'savitri-file-bridge' ); ?></p>
-						<?php else : ?>
-							<details class="sv-log">
-								<summary><?php esc_html_e( 'Ver as 40 últimas linhas', 'savitri-file-bridge' ); ?></summary>
-								<pre><?php echo esc_html( implode( "\n", $log ) ); ?></pre>
-							</details>
-						<?php endif; ?>
-					</div>
-				</section>
 			</aside>
 		</div>
 
@@ -656,6 +548,14 @@ function sv_bridge_render_settings() {
 			var copyLabel   = <?php echo wp_json_encode( __( 'Copiar', 'savitri-file-bridge' ) ); ?>;
 			var copiedLabel = <?php echo wp_json_encode( __( 'Copiado!', 'savitri-file-bridge' ) ); ?>;
 			var failLabel   = <?php echo wp_json_encode( __( 'Copie à mão', 'savitri-file-bridge' ) ); ?>;
+
+			// O switch de permissão salva na hora: não há botão "Salvar".
+			document.querySelectorAll( '[data-autosave]' ).forEach( function ( box ) {
+				box.addEventListener( 'change', function () {
+					var form = box.form;
+					if ( form ) { form.submit(); }
+				} );
+			} );
 
 			document.querySelectorAll( '.sv-bridge-toggle' ).forEach( function ( button ) {
 				button.addEventListener( 'click', function () {
