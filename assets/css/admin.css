@@ -737,9 +737,58 @@
 
 .sv-log > summary {
 	cursor: pointer;
-	font-size: 12.5px;
+	list-style: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	cursor: pointer;
+	font-size: 13px;
 	font-weight: 600;
 	color: var(--sv-blue);
+	user-select: none;
+}
+
+.sv-log > summary::-webkit-details-marker {
+	display: none;
+}
+
+/* Ícone de expandir/retrair */
+.sv-log > summary::before {
+	content: "";
+	width: 0;
+	height: 0;
+	border-left: 5px solid currentColor;
+	border-top: 4px solid transparent;
+	border-bottom: 4px solid transparent;
+	transition: transform 0.18s ease;
+	flex: 0 0 auto;
+}
+
+.sv-log[open] > summary::before {
+	transform: rotate(90deg);
+}
+
+.sv-log__hide {
+	display: none;
+}
+
+.sv-log[open] .sv-log__show {
+	display: none;
+}
+
+.sv-log[open] .sv-log__hide {
+	display: inline;
+}
+
+.sv-log > summary:hover,
+.sv-log > summary:focus {
+	color: var(--sv-blue-dark);
+}
+
+.sv-log > summary:focus-visible {
+	outline: 2px solid var(--sv-blue);
+	outline-offset: 3px;
+	border-radius: 4px;
 }
 
 .sv-log pre {

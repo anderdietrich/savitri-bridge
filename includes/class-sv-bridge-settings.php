@@ -330,17 +330,9 @@ function sv_bridge_render_settings() {
 		<?php elseif ( 'unlocked' === $notice ) : ?>
 			<div class="sv-alert sv-alert--ok"><p><?php esc_html_e( 'Bloqueio de tentativas liberado para o seu IP. O cache das rotas do canal também foi descartado.', 'savitri-file-bridge' ); ?></p></div>
 		<?php elseif ( 'update_found' === $notice ) : ?>
-			<div class="sv-alert sv-alert--ok"><p>
-				<?php
-				printf(
-					/* translators: %s: versão publicada */
-					esc_html__( 'Versão %s encontrada no GitHub. Atualize em Plugins ou pelo botão abaixo.', 'savitri-file-bridge' ),
-					esc_html( $update['ok'] ? $update['latest'] : '' )
-				);
-				?>
-			</p></div>
+			<div class="sv-alert sv-alert--ok"><p><?php esc_html_e( 'Nova versão encontrada. Atualize seu Plugin!', 'savitri-file-bridge' ); ?></p></div>
 		<?php elseif ( 'update_current' === $notice ) : ?>
-			<div class="sv-alert sv-alert--ok"><p><?php esc_html_e( 'Você está na versão mais recente publicada no GitHub.', 'savitri-file-bridge' ); ?></p></div>
+			<div class="sv-alert sv-alert--ok"><p><?php esc_html_e( 'Você está na versão mais recente publicada.', 'savitri-file-bridge' ); ?></p></div>
 		<?php elseif ( 'update_error' === $notice ) : ?>
 			<div class="sv-alert sv-alert--error"><p><?php echo esc_html( $upd_err ? $upd_err : __( 'Não foi possível consultar o GitHub.', 'savitri-file-bridge' ) ); ?></p></div>
 		<?php elseif ( 'no_name' === $notice ) : ?>
@@ -455,7 +447,7 @@ function sv_bridge_render_settings() {
 							</tbody>
 						</table>
 						<p class="sv-footnote" style="padding:0 20px 18px;">
-							<?php esc_html_e( 'A chave só sai desta lista quando é revogada. Quem tiver uma chave pode escrever código no site: trate como senha.', 'savitri-file-bridge' ); ?>
+							<?php esc_html_e( 'Quem tiver uma chave poderá escrever código no seu site, trate-a como cuidado.', 'savitri-file-bridge' ); ?>
 						</p>
 					<?php endif; ?>
 				</section>
@@ -479,7 +471,6 @@ function sv_bridge_render_settings() {
 								</span>
 							</label>
 						</form>
-						<p class="sv-footnote" style="margin:10px 0 0;"><?php esc_html_e( 'A mudança é salva na hora — não há botão de salvar.', 'savitri-file-bridge' ); ?></p>
 					</div>
 				</section>
 
@@ -494,7 +485,13 @@ function sv_bridge_render_settings() {
 						<?php if ( ! $log ) : ?>
 							<p class="sv-footnote" style="margin:0;"><?php esc_html_e( 'Nenhuma operação registrada.', 'savitri-file-bridge' ); ?></p>
 						<?php else : ?>
-							<pre class="sv-logbox"><?php echo esc_html( implode( "\n", $log ) ); ?></pre>
+							<details class="sv-log">
+								<summary>
+									<span class="sv-log__show"><?php printf( esc_html( _n( 'Mostrar a última operação', 'Mostrar as %s últimas operações', count( $log ), 'savitri-file-bridge' ) ), esc_html( number_format_i18n( count( $log ) ) ) ); ?></span>
+									<span class="sv-log__hide"><?php esc_html_e( 'Ocultar as operações', 'savitri-file-bridge' ); ?></span>
+								</summary>
+								<pre class="sv-logbox"><?php echo esc_html( implode( "\n", $log ) ); ?></pre>
+							</details>
 						<?php endif; ?>
 					</div>
 				</section>

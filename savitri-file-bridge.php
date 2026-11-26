@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Savitri Bridge
  * Description:       Conecta este WordPress a um assistente por MCP: ler e editar arquivos de temas e plugins, ativar tema e plugins. Chave gerada em Configurações → Savitri Bridge.
- * Version:           2.5.3
+ * Version:           2.5.5
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Anderson Dietrich
@@ -14,7 +14,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'SV_BRIDGE_VERSION', '2.5.3' );
+define( 'SV_BRIDGE_VERSION', '2.5.5' );
 define( 'SV_BRIDGE_FILE', __FILE__ );
 define( 'SV_BRIDGE_DIR', plugin_dir_path( __FILE__ ) );
 
