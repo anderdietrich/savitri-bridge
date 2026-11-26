@@ -100,13 +100,20 @@ function sv_bridge_keys() {
 }
 
 /**
- * Grava a lista de chaves.
+ * Grava a lista de chaves e descarta o cache de página do canal.
+ *
+ * O resultado de uma requisição muda conforme a chave; guardar em cache faria
+ * o cliente receber um 401/404 antigo depois de a chave ser criada ou revogada.
  *
  * @param array $keys Lista.
  * @return void
  */
 function sv_bridge_save_keys( $keys ) {
 	update_option( 'sv_bridge_keys', array_values( $keys ), false );
+
+	if ( function_exists( 'sv_bridge_purge_cache' ) ) {
+		sv_bridge_purge_cache();
+	}
 }
 
 /**

@@ -4,7 +4,7 @@ Tags: mcp, rest, files, theme, plugin
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 2.3.0
+Stable tag: 2.4.0
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -105,7 +105,16 @@ e revogue quando o trabalho terminar.
 
 == Changelog ==
 
-= 2.3.0 =
+= 2.4.0 =
+* Painel de configuração redesenhado: cartões, tabela de chaves com status de uso, atalhos de
+  conexão e rodapé de log.
+* Atualização pelo GitHub: o painel de plugins passa a ver a versão publicada no repositório e
+  oferece "Atualizar agora". Repositório e token configuráveis na tela (token só para repo privado).
+* Correção do "criar chave não funciona": as rotas passaram a ser registradas mesmo sem chave
+  (respondiam 404, que o cache de página guardava) e o cache do canal é descartado ao criar,
+  renomear ou revogar uma chave. Respostas do canal vão com cabeçalho de não-cachear.
+
+= 2.4.0 =
 * Tabela de chaves: cada chave tem nome da ferramenta conectada, data de criação, último uso
   com IP, editar nome e revogar. A chave só sai da lista quando é revogada.
 * Várias chaves ao mesmo tempo: cada ferramenta usa a sua e revogar uma não derruba as outras.
