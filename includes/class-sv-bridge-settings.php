@@ -453,6 +453,8 @@ function sv_bridge_render_settings() {
 			</div>
 		</header>
 
+		<div class="sv-extra-notices" id="sv-extra-notices" hidden></div>
+
 		<?php
 		// Avisos do painel, no mesmo layout. Todos fecham no X.
 		if ( ! empty( $GLOBALS['sv_bridge_settings_saved'] ) ) {
@@ -710,6 +712,74 @@ function sv_bridge_render_settings() {
 			var copyLabel   = <?php echo wp_json_encode( __( 'Copiar', 'savitri-file-bridge' ) ); ?>;
 			var copiedLabel = <?php echo wp_json_encode( __( 'Copiado!', 'savitri-file-bridge' ) ); ?>;
 			var failLabel   = <?php echo wp_json_encode( __( 'Copie à mão', 'savitri-file-bridge' ) ); ?>;
+
+			// Rede de segurança: avisos que outro plugin injetar depois (ou por JS)
+			// não ficam no meio do cabeçalho — são movidos para o bloco de avisos.
+			( function () {
+				var alvo = document.getElementById( 'sv-extra-notices' );
+				if ( ! alvo ) { return; }
+
+				var tipos = [ 'error', 'warning', 'warn', 'info', 'success' ];
+
+				var acharTipo = function ( el ) {
+					for ( var i = 0; i < tipos.length; i++ ) {
+						if ( el.classList.contains( 'notice-' + tipos[ i ] ) ) {
+							var t = tipos[ i ];
+							if ( 'warning' === t ) { t = 'warn'; }
+							if ( 'success' === t ) { t = 'ok'; }
+							return t;
+						}
+					}
+					if ( el.classList.contains( 'updated' ) ) { return 'ok'; }
+					if ( el.classList.contains( 'error' ) ) { return 'error'; }
+					return 'info';
+				};
+
+				var mover = function () {
+					var avisos = document.querySelectorAll( '.sv-app .notice, .sv-app .update-nag, #wpbody-content > .notice, #wpbody-content > .error, #wpbody-content > .updated' );
+
+					Array.prototype.forEach.call( avisos, function ( el ) {
+						if ( el.closest( '.sv-alert' ) || el.closest( '#sv-extra-notices' ) ) { return; }
+						if ( el.dataset.svMovido ) { return; }
+						el.dataset.svMovido = '1';
+
+						var caixa = document.createElement( 'div' );
+						caixa.className = 'sv-alert sv-alert--' + acharTipo( el );
+
+						var corpo = document.createElement( 'div' );
+						corpo.className = 'sv-alert__body';
+
+						// Move o conteúdo, descartando o botão de dispensar do wp-admin.
+						var copia = el.cloneNode( true );
+						Array.prototype.forEach.call( copia.querySelectorAll( '.notice-dismiss, .dashicons' ), function ( lixo ) {
+							lixo.parentNode.removeChild( lixo );
+						} );
+
+						while ( copia.firstChild ) {
+							corpo.appendChild( copia.firstChild );
+						}
+
+						var fechar = document.createElement( 'button' );
+						fechar.type = 'button';
+						fechar.className = 'sv-alert__close';
+						fechar.setAttribute( 'aria-label', <?php echo wp_json_encode( __( 'Fechar aviso', 'savitri-file-bridge' ) ); ?> );
+						fechar.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+						fechar.addEventListener( 'click', function () { caixa.remove(); } );
+
+						caixa.appendChild( corpo );
+						caixa.appendChild( fechar );
+
+						if ( el.parentNode ) { el.parentNode.removeChild( el ); }
+						alvo.appendChild( caixa );
+						alvo.hidden = false;
+					} );
+				};
+
+				mover();
+				// Plugins Reactivos injetam depois da carga: olha mais duas vezes.
+				window.setTimeout( mover, 400 );
+				window.setTimeout( mover, 1500 );
+			}() );
 
 			// Fecha o aviso no X (sem recarregar; a mensagem já foi lida).
 			document.querySelectorAll( '.sv-alert__close' ).forEach( function ( btn ) {
