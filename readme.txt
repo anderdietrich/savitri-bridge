@@ -4,7 +4,7 @@ Tags: mcp, rest, files, theme, plugin
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 2.5.2
+Stable tag: 2.5.3
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -105,15 +105,21 @@ e revogue quando o trabalho terminar.
 
 == Changelog ==
 
-= 2.5.2 =
+= 2.5.3 =
+* Correção do contraste no cabeçalho: o texto do botão "Atualizar para…" herdava o azul de link do
+  wp-admin e quase sumia sobre o fundo verde. Agora o cabeçalho não herda cor de link nenhuma, e o
+  botão ficou sólido (verde com texto escuro), com realce claro no hover e no foco por teclado.
+* Flag de atualização com texto mais legível nos estados "Atualizado" e "Atualização pendente".
+
+= 2.5.3 =
 * Flag de atualização no cabeçalho, entre o estado do canal e a versão instalada: "Atualizado"
   (verde), "Atualização pendente" (âmbar) ou "Sem verificação" quando o GitHub não respondeu.
 
-= 2.5.2 =
+= 2.5.3 =
 * "Últimas operações" passou para a coluna principal, no lugar que era do bloco de atualizações,
   com o log sempre aberto em vez de gaveta.
 
-= 2.5.2 =
+= 2.5.3 =
 * Painel mais enxuto: saíram os campos de repositório e token do GitHub (o repositório é fixo e
   público, então não há credencial nenhuma a configurar).
 * O bloco "Atualizações pelo GitHub" deixou de existir: quando há versão nova aparece um botão
@@ -121,14 +127,14 @@ e revogue quando o trabalho terminar.
 * "Modo somente leitura" ganhou seção própria (Permissão do canal) e salva no clique — o botão
   "Salvar ajustes" foi removido.
 
-= 2.5.2 =
+= 2.5.3 =
 * Segurança: o canal não grava mais nos próprios arquivos. Antes, apagar era bloqueado mas
   sobrescrever não: com uma chave seria possível trocar o código do plugin e deixar algo
   permanente no site. Vale para REST e para as ferramentas MCP, inclusive com base64.
 * Teste dedicado (`tests/self.php`) cobre os dois caminhos e confirma que gravar e apagar em
   temas e em outros plugins continua funcionando.
 
-= 2.5.2 =
+= 2.5.3 =
 * Painel de configuração redesenhado: cartões, tabela de chaves com status de uso, atalhos de
   conexão e rodapé de log.
 * Atualização pelo GitHub: o painel de plugins passa a ver a versão publicada no repositório e
@@ -137,7 +143,7 @@ e revogue quando o trabalho terminar.
   (respondiam 404, que o cache de página guardava) e o cache do canal é descartado ao criar,
   renomear ou revogar uma chave. Respostas do canal vão com cabeçalho de não-cachear.
 
-= 2.5.2 =
+= 2.5.3 =
 * Tabela de chaves: cada chave tem nome da ferramenta conectada, data de criação, último uso
   com IP, editar nome e revogar. A chave só sai da lista quando é revogada.
 * Várias chaves ao mesmo tempo: cada ferramenta usa a sua e revogar uma não derruba as outras.
