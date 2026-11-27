@@ -11,9 +11,14 @@ defined( 'ABSPATH' ) || exit;
  * Registra a página em Configurações.
  */
 function sv_bridge_settings_menu() {
-	$hook = add_options_page(
+	$parent = sv_bridge_parent_slug();
+
+	sv_bridge_register_parent();
+
+	$hook = add_submenu_page(
+		$parent,
 		__( 'Savitri Bridge', 'savitri-file-bridge' ),
-		__( 'Savitri Bridge', 'savitri-file-bridge' ),
+		__( 'Bridge', 'savitri-file-bridge' ),
 		'manage_options',
 		'sv-bridge',
 		'sv_bridge_render_settings'
@@ -24,13 +29,61 @@ function sv_bridge_settings_menu() {
 add_action( 'admin_menu', 'sv_bridge_settings_menu' );
 
 /**
+ * Slug do menu pai, compartilhado com Leads e Access.
+ *
+ * @return string
+ */
+function sv_bridge_parent_slug() {
+	return 'savitri';
+}
+
+/**
+ * Registra o menu pai se ainda não existe.
+ *
+ * @return void
+ */
+function sv_bridge_register_parent() {
+	$slug = sv_bridge_parent_slug();
+
+	if ( ! empty( $GLOBALS['sv_savitri_parent'] ) ) {
+		return;
+	}
+
+	global $menu;
+
+	if ( is_array( $menu ) ) {
+		foreach ( $menu as $item ) {
+			if ( isset( $item[2] ) && $slug === (string) $item[2] ) {
+				$GLOBALS['sv_savitri_parent'] = true;
+
+				return;
+			}
+		}
+	}
+
+	add_menu_page(
+		__( 'Savitri', 'savitri-file-bridge' ),
+		__( 'Savitri', 'savitri-file-bridge' ),
+		'manage_options',
+		$slug,
+		'sv_bridge_render_settings',
+		'dashicons-superhero',
+		58
+	);
+
+	$GLOBALS['sv_savitri_parent'] = true;
+}
+
+/**
  * Carrega o CSS do painel só nesta tela.
  *
  * @param string $hook Tela atual.
  * @return void
  */
 function sv_bridge_admin_assets( $hook ) {
-	if ( 'settings_page_sv-bridge' !== $hook ) {
+	// Com o menu único o hook passa a ser savitri_page_sv-bridge; a tela antiga
+	// (Configurações → Savitri Bridge) continua aceita para não quebrar link.
+	if ( ! in_array( $hook, array( 'settings_page_sv-bridge', 'savitri_page_sv-bridge' ), true ) ) {
 		return;
 	}
 
@@ -85,7 +138,7 @@ function sv_bridge_sanitize_bool( $value ) {
 function sv_bridge_capture_admin_notices() {
 	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
 
-	if ( ! $screen || 'settings_page_sv-bridge' !== $screen->id ) {
+	if ( ! $screen || ! in_array( (string) $screen->id, array( 'settings_page_sv-bridge', 'savitri_page_sv-bridge' ), true ) ) {
 		return;
 	}
 
@@ -216,7 +269,7 @@ function sv_bridge_render_alert( $type, $body, $html = false ) {
  * @return string
  */
 function sv_bridge_settings_url() {
-	return admin_url( 'options-general.php?page=sv-bridge' );
+	return admin_url( 'admin.php?page=sv-bridge' );
 }
 
 /**
